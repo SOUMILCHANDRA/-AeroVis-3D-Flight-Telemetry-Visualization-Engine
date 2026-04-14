@@ -34,7 +34,7 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   
-  const [isCalibrated, setIsCalibrated] = useState(false)
+  const [isCalibrated, setIsCalibrated] = useState(true)
   const [useKalman, setUseKalman] = useState(true)
   const [cameraMode, setCameraMode] = useState('follow') // 'follow', 'free', 'top'
   const [showTrail, setShowTrail] = useState(true)
@@ -208,11 +208,15 @@ const App = () => {
         return {
           t,
           ax: 2 * Math.cos(t * 0.5),
-          ay: 1.5 * np_sin(t * 0.5), // Utility to simulate
+          ay: 1.5 * Math.sin(t * 0.5), // Utility to simulate
           az: 0.8 * t
         }
       })
-      // Just retry generator or show specific error
+      
+      const processed = processRawData(genData, isCalibrated)
+      setTrajectory(processed)
+      setData(processed)
+      setCurrentIndex(0)
       console.error(err)
     } finally {
       setIsLoading(false)
@@ -270,30 +274,31 @@ const App = () => {
 
       <aside>
         <motion.header 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ marginBottom: '2rem' }}
         >
-          <h1><Activity size={24} /> AeroVis 3D</h1>
-          <span className="subtitle">High-fidelity flight motion telemetry</span>
+          <h1><Activity size={28} color="var(--primary)" /> AeroVis <span style={{ color: 'var(--accent)' }}>3D</span></h1>
+          <span className="subtitle">High-fidelity flight motion telemetry engine</span>
         </motion.header>
 
-        <section className="glass-card">
+        <section className="glass-card" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%)' }}>
           <div className="upload-zone">
             <FileUp size={32} />
             <div>
-              <p style={{ fontWeight: 600 }}>Upload Data</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Excel or CSV file</p>
+              <p style={{ fontWeight: 600, color: '#fff' }}>Import Flight Data</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Drag & drop XLSX / CSV</p>
             </div>
             <input type="file" onChange={handleFileUpload} accept=".xlsx, .xls, .csv" />
           </div>
           <button 
-            className="btn" 
-            style={{ width: '100%', marginTop: '0.75rem', background: 'var(--glass)', color: 'var(--primary)', border: '1px solid var(--primary-glow)' }}
+            className="btn btn-secondary" 
+            style={{ width: '100%', marginTop: '1rem' }}
             onClick={loadSample}
           >
-            Load Sample Simulation
+            Run Advanced Simulation
           </button>
-          {error && <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.5rem' }}>{error}</p>}
+          {error && <p style={{ color: '#fb7185', fontSize: '0.75rem', marginTop: '0.75rem', textAlign: 'center' }}>{error}</p>}
         </section>
 
         <section className="glass-card control-group">
@@ -322,13 +327,13 @@ const App = () => {
           <div className="control-label">Visualization Settings</div>
           <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 Zero-Bias Calibration
                 <div className="tooltip-container">
                   <Info size={12} color="var(--muted)" />
                   <span className="tooltip-text">Offsets sensor gravity/drift based on the first few samples.</span>
                 </div>
-              </span>
+              </div>
               <button 
                 className={`btn ${isCalibrated ? 'active' : ''}`} 
                 style={{ padding: '0.35rem 0.75rem', fontSize: '0.7rem', background: isCalibrated ? 'var(--accent)' : 'var(--glass)' }}
@@ -398,7 +403,9 @@ const App = () => {
                 >
                   <RotateCcw size={12} />
                 </button>
+              </label>
             </div>
+          </div>
         </section>
 
         <section className="glass-card" style={{ flex: 1 }}>
@@ -418,7 +425,7 @@ const App = () => {
             </div>
             <div className="stat-box">
               <div className="stat-label">Altitude</div>
-              <div className="stat-value">{Math.abs(currentStats.py).toFixed(1)} <small>m</small></div>
+              <div className="stat-value">{Math.abs(currentStats.pz).toFixed(1)} <small>m</small></div>
             </div>
           </div>
           
