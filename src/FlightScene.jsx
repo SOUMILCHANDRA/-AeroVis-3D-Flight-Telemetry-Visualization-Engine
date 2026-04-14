@@ -1,104 +1,79 @@
 import React, { useRef, useMemo, Suspense } from 'react'
-import { useFrame, useLoader } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { 
   OrbitControls, 
-  PerspectiveCamera, 
   Stars, 
   Line, 
   Environment,
   Grid,
   ContactShadows,
-  useGLTF
+  useGLTF,
+  Float
 } from '@react-three/drei'
-import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader'
 
-// Fallback high-quality custom model
+// Clean and simple Stylized Placeholder
 const StylizedPlane = ({ rotation, position }) => {
   return (
     <group position={position} rotation={rotation}>
       <mesh castShadow>
-        <capsuleGeometry args={[0.3, 1.2, 8, 24]} />
-        <meshStandardMaterial color="#ffffff" metalness={0.7} roughness={0.2} />
+        <capsuleGeometry args={[0.3, 1.2, 16, 16]} />
+        <meshStandardMaterial color="#ffffff" metalness={0.6} roughness={0.2} />
       </mesh>
-      <mesh position={[0, 0, 0.1]}>
-        <boxGeometry args={[3.0, 0.05, 0.6]} />
-        <meshStandardMaterial color="#3b82f6" />
-      </mesh>
+      <group position={[0, -0.1, 0]}>
+        <mesh receiveShadow>
+            <boxGeometry args={[3.0, 0.05, 0.5]} />
+            <meshStandardMaterial color="#3b82f6" />
+        </mesh>
+      </group>
     </group>
   )
 }
 
-// Airbus A330neo Model (Modern Simulation Look)
+// Airbus A330 Model - Simplified and robust
 const AirbusModel = ({ rotation, position }) => {
+  // useGLTF handles caching automatically
   const { scene } = useGLTF('/models/a330.glb')
   
   return (
-    <group position={position} rotation={rotation}>
-      <primitive 
+    <primitive 
         object={scene} 
-        scale={0.5} 
-        rotation={[0, Math.PI, 0]} // rotate to face forward if needed
-      />
-    </group>
+        position={position}
+        rotation={rotation}
+        scale={0.4} 
+        // Note: we don't apply rotation=[0, PI, 0] here to avoid complexity, 
+        // we'll handle it in the parent if needed or just let it be.
+    />
   )
 }
 
-// World War Aircraft Model (Alternative)
-const WorldWarModel = ({ rotation, position }) => {
-  const materials = useLoader(MTLLoader, '/models/plane.mtl')
-  const obj = useLoader(OBJLoader, '/models/plane.obj', (loader) => {
-    materials.preload()
-    loader.setMaterials(materials)
-  })
-
-  return (
-    <group position={position} rotation={rotation}>
-      <primitive 
-        object={obj} 
-        scale={0.015} 
-        rotation={[-Math.PI / 2, 0, 0]} 
-      />
-    </group>
-  )
-}
-
-// Orb Visualization (Minimalist Mode)
+// Orb Visualization
 const OrbModel = ({ position }) => {
   return (
-    <group position={position}>
-      <mesh castShadow>
-        <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={5} />
-      </mesh>
-      <pointLight color="#3b82f6" intensity={10} distance={15} />
-    </group>
+    <Float speed={3} rotationIntensity={1} floatIntensity={1}>
+        <mesh position={position}>
+            <sphereGeometry args={[0.6, 32, 32]} />
+            <meshStandardMaterial 
+                color="#6366f1" 
+                emissive="#6366f1" 
+                emissiveIntensity={4} 
+            />
+            <pointLight intensity={10} distance={15} color="#6366f1" />
+        </mesh>
+    </Float>
   )
 }
 
 const Trajectory = ({ points, colors, visible }) => {
   if (!visible || !points || points.length < 2) return null
   return (
-    <group>
-      {/* Primary Glowing Core */}
-      <Line 
+    <Line 
         points={points} 
         vertexColors={colors} 
-        lineWidth={4} 
+        lineWidth={3} 
         transparent 
-        opacity={1} 
-      />
-      {/* Secondary Outer Bloom Glow */}
-      <Line 
-        points={points} 
-        vertexColors={colors} 
-        lineWidth={12} 
-        transparent 
-        opacity={0.15} 
-      />
-    </group>
+        opacity={0.8} 
+    />
   )
 }
 
@@ -112,10 +87,12 @@ export default function FlightScene({
   vizMode = 'aircraft'
 }) {
   const controlsRef = useRef()
+  const groupRef = useRef()
 
   const currentPos = useMemo(() => {
     if (!trajectory || trajectory.length === 0) return [0, 0, 0]
     const p = trajectory[Math.min(currentIndex, trajectory.length - 1)]
+    // Consistent Y-Up mapping
     return [p.x * playbackScale, p.z * playbackScale, -p.y * playbackScale]
   }, [trajectory, currentIndex, playbackScale])
 
@@ -124,9 +101,18 @@ export default function FlightScene({
     const idx = Math.min(currentIndex, trajectory.length - 2)
     const p1 = trajectory[idx]
     const p2 = trajectory[idx + 1]
-    const dir = new THREE.Vector3(p2.x - p1.x, p2.z - p1.z, -(p2.y - p1.y)).normalize()
+    
+    const dir = new THREE.Vector3(
+        (p2.x - p1.x), 
+        (p2.z - p1.z), 
+        -(p2.y - p1.y)
+    ).normalize()
+    
+    if (dir.lengthSq() < 0.0001) return [0, 0, 0]
+
     const matrix = new THREE.Matrix4()
-    matrix.lookAt(dir, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0))
+    // Align forward vector (-Z for models) with direction
+    matrix.lookAt(new THREE.Vector3(0,0,0), dir, new THREE.Vector3(0, 1, 0))
     const euler = new THREE.Euler().setFromRotationMatrix(matrix)
     return [euler.x, euler.y, euler.z]
   }, [trajectory, currentIndex])
@@ -135,101 +121,87 @@ export default function FlightScene({
     if (!trajectory || trajectory.length === 0) return { trailPoints: [], trailColors: [] }
     
     const slice = trajectory.slice(0, currentIndex + 1)
-    const filtered = slice.filter((_, i) => i % 2 === 0 || i === currentIndex)
+    // Dynamic subsampling for performance
+    const step = Math.ceil(slice.length / 500) || 1
+    const filtered = slice.filter((_, i) => i % step === 0 || i === currentIndex)
     
     const pts = filtered.map(p => new THREE.Vector3(p.x * playbackScale, p.z * playbackScale, -p.y * playbackScale))
     const cls = filtered.map(p => {
         const speed = p.speed || 0
-        const hue = Math.min(1, speed / 20) * 0.6
-        return new THREE.Color().setHSL(0.6 - hue, 1.0, 0.5)
+        const hue = Math.min(1, speed / 50) * 0.7
+        return new THREE.Color().setHSL(0.7 - hue, 1.0, 0.5)
     })
     
     return { trailPoints: pts, trailColors: cls }
   }, [trajectory, currentIndex, playbackScale])
 
   useFrame((state) => {
+    if (trajectory.length === 0) return
+
+    const tPos = new THREE.Vector3(...currentPos)
+    
     if (cameraMode === 'follow') {
-      const offset = new THREE.Vector3(-15, 10, 15)
-      const targetPos = new THREE.Vector3(...currentPos).add(offset)
-      state.camera.position.lerp(targetPos, 0.05)
-      state.camera.lookAt(...currentPos)
-      if (controlsRef.current) {
-        controlsRef.current.target.lerp(new THREE.Vector3(...currentPos), 0.1)
-      }
+      const idealOffset = new THREE.Vector3(-20, 10, 20)
+      const targetCamPos = tPos.clone().add(idealOffset)
+      state.camera.position.lerp(targetCamPos, 0.05)
+      state.camera.lookAt(tPos)
+      if (controlsRef.current) controlsRef.current.target.lerp(tPos, 0.1)
     } else if (cameraMode === 'top') {
-      const topPos = new THREE.Vector3(currentPos[0], 50, currentPos[2])
+      const topPos = new THREE.Vector3(tPos.x, tPos.y + 100, tPos.z)
       state.camera.position.lerp(topPos, 0.05)
-      state.camera.lookAt(...currentPos)
-      if (controlsRef.current) {
-        controlsRef.current.target.lerp(new THREE.Vector3(...currentPos), 0.1)
-      }
+      state.camera.lookAt(tPos)
+      if (controlsRef.current) controlsRef.current.target.lerp(tPos, 0.1)
     }
   })
 
   return (
     <>
-      <PerspectiveCamera 
-        makeDefault 
-        position={[18, 12, 18]} 
-        fov={40} 
-      />
       <OrbitControls 
         ref={controlsRef} 
         makeDefault 
-        enableDamping 
         enabled={cameraMode === 'free'}
       />
       
-      <color attach="background" args={['#010409']} />
-      <Stars radius={150} depth={60} count={6000} factor={4} saturation={0.5} fade speed={1} />
+      <color attach="background" args={['#030408']} />
+      <Stars radius={300} depth={50} count={5000} factor={4} saturation={1} fade speed={1} />
       <Environment preset="night" />
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[10, 10, 10]} intensity={1.5} castShadow />
+      
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[20, 50, 20]} intensity={2} castShadow />
+      <pointLight position={[-20, 30, -20]} intensity={1.5} color="#3b82f6" />
 
       <Grid
         infiniteGrid
-        fadeDistance={120}
-        fadeStrength={6}
+        fadeDistance={300}
         sectionSize={10}
         sectionColor="#1e293b"
         cellSize={2}
         cellColor="#0f172a"
-        position={[0, -8, 0]}
+        position={[0, -20, 0]}
       />
 
       <ContactShadows 
-        position={[0, -7.9, 0]} 
+        position={[0, -19.9, 0]} 
         opacity={0.4} 
-        scale={60} 
+        scale={100} 
         blur={2} 
-        far={10} 
+        far={20} 
       />
 
-      {showPlane && (
-        <Suspense fallback={<StylizedPlane position={currentPos} rotation={currentRot} />}>
-          {vizMode === 'aircraft' ? (
-            <AirbusModel position={currentPos} rotation={currentRot} />
-          ) : (
-            <OrbModel position={currentPos} />
-          )}
-        </Suspense>
-      )}
-      
-      <Trajectory points={trailPoints} colors={trailColors} visible={showTrail} />
-      
-      {/* Post-Processing Effects for Simulation Look */}
-      <EffectComposer disableNormalPass>
-        <Bloom 
-          intensity={1.5} 
-          luminanceThreshold={0.2} 
-          luminanceSmoothing={0.9} 
-          height={300} 
-        />
-        <Noise opacity={0.02} />
-        <Vignette eskil={false} offset={0.1} darkness={1.1} />
-      </EffectComposer>
+      <group ref={groupRef}>
+        {showPlane && (
+            <Suspense fallback={<StylizedPlane position={currentPos} rotation={currentRot} />}>
+            {vizMode === 'aircraft' ? (
+                <AirbusModel position={currentPos} rotation={currentRot} />
+            ) : (
+                <OrbModel position={currentPos} />
+            )}
+            </Suspense>
+        )}
+        <Trajectory points={trailPoints} colors={trailColors} visible={showTrail} />
+      </group>
 
-      <axesHelper args={[2]} />
+      <axesHelper args={[5]} />
     </>
   )
 }
