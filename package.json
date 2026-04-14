@@ -19,6 +19,7 @@
     "postprocessing": "^6.39.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-is": "^19.2.4",
     "recharts": "^3.8.0",
     "three": "^0.160.0",
     "xlsx": "^0.18.5"
