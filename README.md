@@ -1,6 +1,6 @@
 # ✈️ AeroVis — 3D Flight Telemetry Visualization Engine
 
-AeroVis is a high-performance 3D visualization engine designed to simulate and render aircraft telemetry data in real time. It transforms raw flight data into an interactive, immersive visual experience.
+AeroVis is a high-performance 3D visualization engine designed to simulate and render aircraft telemetry data in real time. It transforms raw flight  data into an interactive, immersive visual experience.
 
 ---
 
